@@ -1,134 +1,75 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useReducer } from 'react';
 import './App.css'
 
 const COLUMNS = 7;
 const ROWS = 6;
 export default function App() {
-  const [currentPlayer, setCurrentPlayer] = useState('player-1');
-  const [boards, setBoards] = useState(Array(COLUMNS).fill(null).map((v) => Array(ROWS).fill(null)));
-  const [attempts, setAttempts] = useState(0)
-  const [winner, setWinner] = useState(null)
-  const [gamesOver, setGamesOver] = useState(false)
+  const [{ boards, winner, isGameOver }, dispatch] = useReducer(reducer, genEmptyState())
 
-  const restartGame=()=>{
-    setBoards(Array(COLUMNS).fill(null).map((v) => Array(ROWS).fill(null)));
-    setCurrentPlayer('player-1');
-    setAttempts(0);
-    setWinner(null);
-    setGamesOver(false)
-  }
-  
-  const checkFourInArray = (arr) => {
-    let res = false;
-    if (arr.filter(x => x == 'player-1').length >= 4 || arr.filter(x => x >= 'player-2').length >= 4) {
-      let k = 0;
-      let _winner = null;
-      arr.forEach((tile) => {
-        if (tile == null && !res) { k = 0; return }
-        if (tile == 'player-1') {
-          if (k >= 0) k++;
-          else k = 1
-        } else if (tile == 'player-2') {
-          if (k <= 0) k--;
-          else k = -1;
-        }
-        if (k >= 4) res = 'player-1'
-        else if (k <= -4) res = 'player-2'
-      }
-      )
-      if (k >= 4) res = 'player-1'
-      else if (k <= -4) res = 'player-2'
-    }
-    return res;
-  }
-  const checkWin = () => {
-    let res = false, i = 0;
-    // if(attempts<4)return false;
-    //check per columns
-    while (i < COLUMNS) {
-      res = checkFourInArray([...boards[i]].reverse())
-      if (res) break;
-      i++;
-    }
-
-
-    //check by row
-    if (!res) {
-      for (let i = 0; i < ROWS; i++) {
-        let row = []
-        for (let j = 0; j < COLUMNS; j++) {
-          row.push(boards[j][i]);
-        }
-        res = checkFourInArray(row);
-        if (res) break;
-      }
-    }
-
-    // check per  diagonal 
-    if (!res) {
-      let boardsCloneRight = Array(COLUMNS).fill(null).map((v) => Array(ROWS).fill(null))
-      let boardsCloneLeft = Array(COLUMNS).fill(null).map((v) => Array(ROWS).fill(null))
-      for (let i = 0; i < ROWS; i++) {
-        let row = []
-        for (let j = 0; j < COLUMNS; j++) {
-          row.push(boards[j][i]);
-        }
-
-        for (let k = (5 - i); k < COLUMNS; k++) {
-          boardsCloneRight[(k - 5) + i][i] = row[k]
-        }
-        for (let k = (i + 1); k < COLUMNS; k++) {
-          boardsCloneLeft[7 - k + i][i] = row[k]
-        }
-      }
-
-      i = 0;
-      while (i < COLUMNS) {
-        res = checkFourInArray(boardsCloneRight[i]) || checkFourInArray(boardsCloneLeft[i])
-        if (res) break;
-        i++;
-      }
-
-    }
-    if(res){
-    setWinner(res)
-    setGamesOver(true)
-    }
-  }
-  const addCircle = (index) => {
-    if(winner ||gamesOver )return
-    if (!boards[index].includes(null)) return;
-    let isAdded = false;
-    let i = 0;
-    let boardsClone = [...boards.map(i => [...i])]
-    setAttempts(attempts + 1)
-    while ((!isAdded && i < ROWS)) {
-      if (!boardsClone[index][ROWS - i - 1]) {
-        boardsClone[index][ROWS - i - 1] = currentPlayer;
-        isAdded = true;
-      }
-      i++
-    }
-    setBoards(boardsClone);
-    setCurrentPlayer(currentPlayer == 'player-1' ? 'player-2' : 'player-1')
-  }
-  useEffect(() => {
-    if (attempts == 0) return
-    if(attempts ==(COLUMNS*ROWS)) setGamesOver(true)
-    checkWin()
-  }, [attempts])
   return (
-    <div style={{ display: 'flex',flexDirection:'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      {winner && <h1>Player {winner == "player-1" ? 1 : 2} Wins</h1>}
-     <div className='board'>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      {winner && <h1>Player {winner} Wins</h1>}
+      <div className='board'>
         {boards.map((col, colIndex) => <div key={'col-' + colIndex} className='column' onClick={() => {
-          addCircle(colIndex)
-        }}>
+          dispatch({type:'move',colIndex}) }}>
           {col.map((tile, rowIndex) => <div key={'row-' + rowIndex + 'col-' + rowIndex} className='tile'>
-            {tile && <div className={`player${tile ? ' ' + tile : ''}`}></div>}
+            {tile && <div className={`player player-${tile}`}></div>}
           </div>)}
         </div>)}
       </div>
-      {(winner || gamesOver) && <button onClick={restartGame}>Restart</button>}
+      {(winner || isGameOver) && <button onClick={()=>{dispatch({type:'restart'})}}>Restart</button>}
     </div>)
+}
+
+const reducer = (state, action) => {
+  switch(action.type){
+    case 'restart':return genEmptyState();
+    case 'move':{
+      const {boards,currentPlayer}=state;
+      if(state.isGameOver || boards[action.colIndex][0])return state;
+      let newboards=[...boards];
+      let col=[...newboards[action.colIndex]];
+      let rowIndex=col.lastIndexOf(null);
+      col[rowIndex]=currentPlayer;
+      newboards[action.colIndex]=col;
+      let checkwinHorizontal=isWin(rowIndex,action.colIndex,0,1,newboards,currentPlayer);
+      let checkwinVertical=isWin(rowIndex,action.colIndex,1,0,newboards,currentPlayer);
+      let checkwinDiagTopLeftBottomRight=isWin(rowIndex,action.colIndex,1,1,newboards,currentPlayer);
+      let checkwinDiagTopRightBottomLeft=isWin(rowIndex,action.colIndex,-1,1,newboards,currentPlayer);
+      const winner=checkwinHorizontal || checkwinVertical || checkwinDiagTopLeftBottomRight || checkwinDiagTopRightBottomLeft
+      const fullBoard=newboards.every(column=>column[0]!=null);
+      return {boards:newboards,currentPlayer:currentPlayer==1?2:1,isGameOver:winner||fullBoard,winner}
+    };
+    default:return state;
+  }
+}
+
+const genEmptyState = () => {
+  return {
+    boards: new Array(COLUMNS).fill(null).map(_ => new Array(ROWS).fill(null)),
+    winner: null,
+    currentPlayer: 1,
+    isGameOver: false
+  }
+}
+
+function isWin(rowStart,colStart,rowIncrement,colIncrement,boards,currentPlayer){
+  let currentRow=rowStart;
+  let currentCol=colStart;
+  let numTile=0;
+  while (currentRow<ROWS && currentCol<COLUMNS && boards[currentCol][currentRow]==currentPlayer){
+    currentRow+=rowIncrement;
+    currentCol+=colIncrement;
+    numTile++;
+  }
+
+  currentRow=rowStart-rowIncrement;
+  currentCol=colStart-colIncrement;
+
+  while (currentRow>=0 && currentCol>=0 && boards[currentCol][currentRow]==currentPlayer){
+    currentRow-=rowIncrement;
+    currentCol-=colIncrement;
+    numTile++;
+  }
+  return (numTile>=4?currentPlayer:null)
 }
