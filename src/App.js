@@ -17,7 +17,7 @@ export default function App() {
           </div>)}
         </div>)}
       </div>
-      {(winner || isGameOver) && <button onClick={()=>{dispatch({type:'restart'})}}>Restart</button>}
+      {(winner || isGameOver) && <button id="btn" onClick={()=>{dispatch({type:'restart'})}}>Restart</button>}
     </div>)
 }
 
